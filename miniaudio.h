@@ -12213,6 +12213,7 @@ typedef struct
     ma_fence* pLoadedFence;                                 /* Set to NULL if not using a fence. */
     void (* onLoaded )(void* pUserData, ma_sound* pSuond);  /* Fired by the resource manager when the sound has finished loading. */
     void (* onAtEnd  )(void* pUserData, ma_sound* pSound);  /* Fired when the sound reaches the end of the data source. */
+    void (* onPreProcess)(void* pUserData, ma_sound* pSound, float* pFrames, ma_uint64 frameCount);
     void (* onProcess)(void* pUserData, ma_sound* pSound, float* pFrames, ma_uint64 frameCount);
     void* pUserData;
 } ma_sound_notifications;
@@ -91005,6 +91006,17 @@ static void ma_engine_node_process_pcm_frames__general(ma_engine_node* pEngineNo
         } else {
             framesJustProcessedIn  = ma_min(framesAvailableIn, framesAvailableOut);
             framesJustProcessedOut = framesJustProcessedIn; /* When no resampling is being performed, the number of output frames is the same as input frames. */
+        }
+
+        /*
+        Fire the pre-process callback right after resampling (pitch), but before fading, volume, spatialization,
+        channel conversion and panning. The frames are read-only and in the input channel count.
+        */
+        {
+            ma_sound* pSound = (ma_sound*)pEngineNode;
+            if (pSound->notifications.onPreProcess != NULL && framesJustProcessedOut > 0) {
+                pSound->notifications.onPreProcess(pSound->notifications.pUserData, pSound, isWorkingBufferValid ? pWorkingBuffer : (float *)pRunningFramesIn, framesJustProcessedOut);
+            }
         }
 
         /* Fading. */
